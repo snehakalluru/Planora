@@ -1,3 +1,20 @@
+from django.db import models
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+# PlannerRequest model for chatbot history
+class PlannerRequest(models.Model):
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name="planner_requests")
+    subject = models.CharField(max_length=150)
+    topics = models.TextField()
+    difficulty = models.CharField(max_length=20)
+    response = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.subject} ({self.difficulty}) - {self.created_at:%Y-%m-%d %H:%M}"
 from datetime import timedelta
 
 from django.contrib.auth.models import User

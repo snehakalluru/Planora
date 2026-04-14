@@ -1,3 +1,30 @@
+from .models import NotificationSubscription, StudyResource, Task, PlannerRequest
+# Planner history management views
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from django.urls import reverse
+
+from django.views.decorators.http import require_POST
+
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def planner_history(request):
+    requests = PlannerRequest.objects.filter(user=request.user)
+    return render(request, "tasks/planner_history.html", {"requests": requests})
+
+@login_required
+def planner_detail(request, pk):
+    planner_request = get_object_or_404(PlannerRequest, pk=pk, user=request.user)
+    return render(request, "tasks/planner_detail.html", {"planner_request": planner_request})
+
+@login_required
+@require_POST
+def delete_planner_request(request, pk):
+    planner_request = get_object_or_404(PlannerRequest, pk=pk, user=request.user)
+    planner_request.delete()
+    messages.success(request, "Planner request deleted.")
+    return redirect(reverse("planner_history"))
 from collections import OrderedDict
 from datetime import timedelta
 import json
@@ -220,6 +247,15 @@ def chatbot_view(request):
             raw_response = generate_plan(subject, topics, difficulty, resource_text)
             response_sections = _format_chatbot_response(raw_response)
 
+            # Save to PlannerRequest
+            PlannerRequest.objects.create(
+                user=request.user,
+                subject=subject,
+                topics=topics,
+                difficulty=difficulty,
+                response=raw_response,
+            )
+
             history_entry = {
                 "subject": subject,
                 "difficulty": difficulty,
@@ -232,11 +268,14 @@ def chatbot_view(request):
     else:
         form = ExamPlannerForm()
 
+    # Pass recent planner requests for this user
+    requests = PlannerRequest.objects.filter(user=request.user).order_by('-created_at')[:5]
     context = {
         "form": form,
         "response_sections": response_sections,
         "uploaded_resource": uploaded_resource,
         "chat_history": history,
+        "requests": requests,
     }
     return render(request, "tasks/chatbot.html", context)
 

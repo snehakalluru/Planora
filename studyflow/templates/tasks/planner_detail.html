@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Planner Response | StudyFlow{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <div class="page-eyebrow mb-2">Exam Planner</div>
+        <h2 class="fw-bold mb-1">Saved Planner Response</h2>
+        <p class="text-secondary mb-0">View your full study plan and practice questions.</p>
+    </div>
+    <a href="{% url 'planner_history' %}" class="btn btn-outline-secondary">Back to History</a>
+</div>
+<div class="card content-card p-4 mb-4">
+    <div class="mb-3">
+        <span class="badge bg-primary me-2">{{ planner_request.difficulty }}</span>
+        <span class="fw-semibold">{{ planner_request.subject }}</span>
+        <span class="text-secondary ms-2">{{ planner_request.created_at|date:"Y-m-d H:i" }}</span>
+    </div>
+    <div class="mb-3">
+        <span class="fw-semibold">Topics:</span> {{ planner_request.topics }}
+    </div>
+    <hr>
+    <div class="mb-3">
+        <span class="fw-semibold">Full Response:</span>
+        <pre style="white-space: pre-wrap; background: #f8f9fa; padding: 1em; border-radius: 8px;">{{ planner_request.response|safe }}</pre>
+    </div>
+    <form method="post" action="{% url 'delete_planner_request' planner_request.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this planner request?');">Delete</button>
+    </form>
+</div>
+{% endblock %}

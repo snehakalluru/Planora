@@ -14,4 +14,9 @@ urlpatterns = [
     path("calendar/", views.calendar_view, name="calendar"),
     path("notifications/subscribe/", views.subscribe_notifications_view, name="notifications_subscribe"),
     path("notifications/unsubscribe/", views.unsubscribe_notifications_view, name="notifications_unsubscribe"),
+
+    # Planner history management
+    path("history/", views.planner_history, name="planner_history"),
+    path("history/<int:pk>/", views.planner_detail, name="planner_detail"),
+    path("history/<int:pk>/delete/", views.delete_planner_request, name="delete_planner_request"),
 ]
