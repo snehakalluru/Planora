@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | StudyFlow{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <div class="page-eyebrow mb-2">Overview</div>
+        <h2 class="fw-bold mb-1">Your Dashboard</h2>
+        <p class="text-secondary mb-0">Track progress, stay focused, and keep every deadline visible.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'calendar' %}" class="btn btn-outline-primary">Open Calendar</a>
+        <button
+            id="notifications-toggle"
+            type="button"
+            class="btn {% if notifications_enabled %}btn-outline-danger{% else %}btn-outline-success{% endif %}"
+            data-enabled="{{ notifications_enabled|yesno:'true,false' }}"
+            data-public-key="{{ vapid_public_key }}"
+        >
+            {% if notifications_enabled %}Disable Notifications{% else %}Enable Notifications{% endif %}
+        </button>
+        <a href="{% url 'task_add' %}" class="btn btn-primary">Add New Task</a>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card text-bg-primary p-3 h-100">
+            <div class="task-meta text-white-50 mb-2">Total Tasks</div>
+            <div class="metric-value">{{ total_tasks }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card text-bg-success p-3 h-100">
+            <div class="task-meta text-white-50 mb-2">Completed</div>
+            <div class="metric-value">{{ completed_tasks }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card text-bg-warning p-3 h-100">
+            <div class="task-meta text-dark opacity-75 mb-2">Pending</div>
+            <div class="metric-value">{{ pending_tasks }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card text-bg-dark p-3 h-100">
+            <div class="task-meta text-white-50 mb-2">Progress</div>
+            <div class="metric-value">{{ progress_percentage }}%</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        {% if late_completed_tasks %}
+            <div class="alert alert-warning border-0 shadow-sm mb-4" role="alert">
+                <h5 class="fw-bold mb-2">Completed After Deadline</h5>
+                {% for task in late_completed_tasks %}
+                    <div class="mb-2">
+                        <strong>{{ task.title }}</strong> was completed on
+                        {{ task.completed_at|date:"d M Y, h:i A" }},
+                        after the deadline of {{ task.deadline|date:"d M Y, h:i A" }}.
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="card content-card p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="section-title">Progress Overview</h4>
+                <span class="deadline-chip">{{ progress_percentage }}% complete</span>
+            </div>
+            <div class="progress mb-4" role="progressbar" aria-label="Task progress">
+                <div class="progress-bar" style="width: {{ progress_percentage }}%;">{{ progress_percentage }}%</div>
+            </div>
+            <div class="row g-3 text-center">
+                <div class="col-md-4">
+                    <div class="soft-card p-3">
+                        <h5 class="mb-1">{{ task_summary.high_priority }}</h5>
+                        <small class="text-secondary">High Priority</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="soft-card p-3">
+                        <h5 class="mb-1">{{ task_summary.medium_priority }}</h5>
+                        <small class="text-secondary">Medium Priority</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="soft-card p-3">
+                        <h5 class="mb-1">{{ task_summary.low_priority }}</h5>
+                        <small class="text-secondary">Low Priority</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card content-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h4 class="section-title">Recent Tasks</h4>
+                    <div class="task-meta">Filter your current workload by priority and status.</div>
+                </div>
+                <a href="{% url 'task_list' %}" class="btn btn-outline-primary btn-sm">View All</a>
+            </div>
+
+            <form method="get" class="row g-3 mb-4">
+                <div class="col-md-5">
+                    <select name="priority" class="form-select">
+                        <option value="">All Priorities</option>
+                        {% for value, label in priority_choices %}
+                            <option value="{{ value }}" {% if selected_priority == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <select name="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button class="btn btn-primary" type="submit">Filter</button>
+                </div>
+            </form>
+
+            {% if tasks %}
+                <div class="table-responsive">
+                    <table class="table align-middle task-table">
+                        <thead>
+                            <tr>
+                                <th>Task</th>
+                                <th>Deadline</th>
+                                <th>Reminder</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in tasks %}
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">{{ task.title }}</div>
+                                        <div class="task-meta">{{ task.description|default:"No description added yet."|truncatechars:70 }}</div>
+                                    </td>
+                                    <td>
+                                        <div>{{ task.deadline|date:"d M Y" }}</div>
+                                        <div class="task-meta">{{ task.deadline|date:"h:i A" }}</div>
+                                    </td>
+                                    <td>
+                                        {% if task.reminder_time %}
+                                            <div>{{ task.reminder_time|date:"d M Y" }}</div>
+                                            <div class="task-meta">{{ task.reminder_time|date:"h:i A" }}</div>
+                                        {% else %}
+                                            <div class="task-meta">Auto reminder</div>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="badge priority-badge {{ task.priority }}">{{ task.priority }}</span></td>
+                                    <td><span class="status-pill {{ task.status }}">{{ task.status }}</span></td>
+                                    <td class="text-end">
+                                        <form method="post" action="{% url 'task_toggle' task.pk %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-success">
+                                                {% if task.status == 'Completed' %}Mark Pending{% else %}Complete{% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <h5 class="fw-bold">No tasks match these filters</h5>
+                    <p class="mb-3">Try changing the filters or create a new task to start building your study plan.</p>
+                    <a href="{% url 'task_add' %}" class="btn btn-primary">Create Your First Task</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card content-card p-4 mb-4">
+            <h4 class="section-title mb-3">Upcoming Reminders</h4>
+            {% if reminder_ready_tasks %}
+                <div class="list-group list-group-flush notification-list">
+                    {% for task in reminder_ready_tasks %}
+                        <div class="list-group-item px-0">
+                            <div class="fw-semibold">{{ task.title }}</div>
+                            <div class="task-meta">
+                                Reminder {{ task.reminder_time|timeuntil }} from now
+                            </div>
+                            <div class="task-meta">
+                                Due {{ task.deadline|timeuntil }} from now
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state p-3">
+                    No reminders scheduled in the next 12 hours.
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="card content-card p-4 mb-4">
+            <h4 class="section-title mb-3">Upcoming Deadlines</h4>
+            {% if upcoming_deadlines %}
+                <div class="list-group list-group-flush upcoming-list">
+                    {% for task in upcoming_deadlines %}
+                        <div class="list-group-item px-0">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="fw-semibold">{{ task.title }}</div>
+                                    <small class="text-secondary">{{ task.deadline|date:"d M Y, h:i A" }}</small>
+                                    <div class="task-meta">Task due in {{ task.deadline|timeuntil }}</div>
+                                </div>
+                                <span class="badge priority-badge {{ task.priority }}">{{ task.priority }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state p-3">
+                    No upcoming deadlines in the next 3 days.
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="card content-card p-4 mb-4">
+            <h4 class="section-title mb-3">Today&apos;s Focus</h4>
+            {% if due_today_tasks %}
+                <div class="list-group list-group-flush notification-list">
+                    {% for task in due_today_tasks %}
+                        <div class="list-group-item px-0">
+                            <div class="fw-semibold">{{ task.title }}</div>
+                            <div class="task-meta">Due today at {{ task.deadline|date:"h:i A" }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state p-3">
+                    Nothing is due today. Use this time to get ahead.
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="card content-card p-4">
+            <h4 class="section-title mb-3">Overdue Tasks</h4>
+            {% if overdue_tasks %}
+                <div class="list-group list-group-flush notification-list">
+                    {% for task in overdue_tasks %}
+                        <div class="list-group-item px-0">
+                            <div class="fw-semibold">{{ task.title }}</div>
+                            <div class="task-meta">Missed on {{ task.deadline|date:"d M Y, h:i A" }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state p-3">
+                    No overdue tasks. Nice work staying on top of things.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) {
+            return parts.pop().split(";").shift();
+        }
+        return "";
+    }
+
+    function urlBase64ToUint8Array(base64String) {
+        const padding = "=".repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    async function subscribeToNotifications(button) {
+        const publicKey = button.dataset.publicKey;
+        if (!publicKey) {
+            alert("VAPID public key is missing. Please configure push settings first.");
+            return;
+        }
+
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+            alert("Push notifications are not supported in this browser.");
+            return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+            alert("Notification permission was not granted.");
+            return;
+        }
+
+        const registration = await navigator.serviceWorker.register("{% url 'service_worker' %}");
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+
+        await fetch("{% url 'notifications_subscribe' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken"),
+            },
+            body: JSON.stringify(subscription),
+        });
+
+        button.dataset.enabled = "true";
+        button.textContent = "Disable Notifications";
+        button.classList.remove("btn-outline-success");
+        button.classList.add("btn-outline-danger");
+    }
+
+    async function unsubscribeFromNotifications(button) {
+        const registration = await navigator.serviceWorker.getRegistration("{% url 'service_worker' %}");
+        const subscription = registration ? await registration.pushManager.getSubscription() : null;
+
+        if (subscription) {
+            await subscription.unsubscribe();
+        }
+
+        await fetch("{% url 'notifications_unsubscribe' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": getCookie("csrftoken"),
+            },
+        });
+
+        button.dataset.enabled = "false";
+        button.textContent = "Enable Notifications";
+        button.classList.remove("btn-outline-danger");
+        button.classList.add("btn-outline-success");
+    }
+
+    const notificationsButton = document.getElementById("notifications-toggle");
+    if (notificationsButton) {
+        notificationsButton.addEventListener("click", async () => {
+            if (notificationsButton.dataset.enabled === "true") {
+                await unsubscribeFromNotifications(notificationsButton);
+            } else {
+                await subscribeToNotifications(notificationsButton);
+            }
+        });
+    }
+</script>
+{% endblock %}

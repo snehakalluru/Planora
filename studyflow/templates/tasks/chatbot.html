@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}AI Exam Planner | StudyFlow{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <div class="page-eyebrow mb-2">AI Assistant</div>
+        <h2 class="fw-bold mb-1">Exam Planner Chatbot</h2>
+        <p class="text-secondary mb-0">Build a study plan, generate practice questions, and summarize your PDF notes in one place.</p>
+    </div>
+    <a href="{% url 'task_add' %}" class="btn btn-outline-primary">Add Related Task</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card content-card p-4 p-lg-5 h-100">
+            <h4 class="fw-bold mb-3">Plan Your Exam Prep</h4>
+            <form method="post" enctype="multipart/form-data" id="exam-planner-form">
+                {% csrf_token %}
+                {% for field in form %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                        {% endif %}
+                        {% for error in field.errors %}
+                            <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+                <button type="submit" class="btn btn-primary w-100" id="generate-plan-btn">Generate Exam Plan</button>
+            </form>
+
+            <div class="soft-card p-3 mt-4 d-none" id="loading-state">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div>
+                        <div class="fw-semibold">Generating your planner</div>
+                        <div class="task-meta">Analyzing topics, adjusting difficulty, and preparing structured study guidance.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card content-card p-4 p-lg-5 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold mb-0">Planner Response</h4>
+                {% if uploaded_resource %}
+                    <span class="deadline-chip">PDF processed</span>
+                {% endif %}
+            </div>
+
+            {% if response_sections %}
+                <div class="d-grid gap-3">
+                    {% for section in response_sections %}
+                        <div class="soft-card p-3">
+                            <h5 class="fw-bold mb-3">{{ section.heading }}</h5>
+                            <ul class="mb-0 ps-3">
+                                {% for item in section.items %}
+                                    <li class="mb-2">{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <h5 class="fw-bold">No planner generated yet</h5>
+                    <p class="mb-0">Enter your subject, topics, difficulty level, and an optional PDF to generate a personalized exam preparation plan.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="card content-card p-4">
+            <h4 class="fw-bold mb-3">Recent Planner Requests</h4>
+            {% if chat_history %}
+                <div class="d-grid gap-3">
+                    {% for item in chat_history %}
+                        <div class="soft-card p-3">
+                            <div class="fw-semibold">{{ item.subject }}</div>
+                            <div class="task-meta mb-1">Difficulty: {{ item.difficulty }}</div>
+                            <div class="task-meta">Topics: {{ item.topics|truncatechars:110 }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state p-3">
+                    Your recent exam planner requests will appear here.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    const examPlannerForm = document.getElementById("exam-planner-form");
+    const loadingState = document.getElementById("loading-state");
+    const generatePlanButton = document.getElementById("generate-plan-btn");
+
+    if (examPlannerForm) {
+        examPlannerForm.addEventListener("submit", () => {
+            if (loadingState) {
+                loadingState.classList.remove("d-none");
+            }
+            if (generatePlanButton) {
+                generatePlanButton.disabled = true;
+                generatePlanButton.textContent = "Generating...";
+            }
+        });
+    }
+</script>
+{% endblock %}
