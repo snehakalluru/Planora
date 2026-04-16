@@ -6,6 +6,11 @@ from . import views
 urlpatterns = [
     path("", views.dashboard_view, name="dashboard"),
     path("chatbot/", views.chatbot_view, name="chatbot"),
+    path("timetable/", views.timetable_view, name="timetable"),
+    path("add-task/", views.timetable_task_create_view, name="timetable_task_add"),
+    path("edit-task/<int:pk>/", views.timetable_task_update_view, name="timetable_task_edit"),
+    path("delete-task/<int:pk>/", views.timetable_task_delete_view, name="timetable_task_delete"),
+    path("toggle-task/<int:pk>/", views.timetable_task_toggle_completed_view, name="timetable_task_toggle"),
     path("list/", views.task_list_view, name="task_list"),
     path("add/", views.task_create_view, name="task_add"),
     path("<int:pk>/edit/", views.task_update_view, name="task_edit"),

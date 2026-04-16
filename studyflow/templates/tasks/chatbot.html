@@ -38,7 +38,7 @@
                     <div class="spinner-border text-primary" role="status"></div>
                     <div>
                         <div class="fw-semibold">Generating your planner</div>
-                        <div class="task-meta">Analyzing topics, adjusting difficulty, and preparing structured study guidance.</div>
+                        <div class="task-meta">Preparing a personalized exam plan and question set.</div>
                     </div>
                 </div>
             </div>
@@ -48,49 +48,31 @@
     <div class="col-lg-7">
         <div class="card content-card p-4 p-lg-5 mb-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 class="fw-bold mb-0">Planner Response</h4>
-                {% if uploaded_resource %}
-                    <span class="deadline-chip">PDF processed</span>
+                <div>
+                    <h4 class="fw-bold mb-0">Planner Response</h4>
+                    {% if uploaded_resource %}
+                        <span class="deadline-chip">PDF processed</span>
+                    {% endif %}
+                </div>
+                {% if plan %}
+                    <a href="{% url 'chatbot' %}" class="btn btn-outline-secondary btn-sm">Generate Again</a>
                 {% endif %}
             </div>
 
-            {% if response_sections %}
-                <div class="d-grid gap-3">
-                    {% for section in response_sections %}
-                        <div class="soft-card p-3">
-                            <h5 class="fw-bold mb-3">{{ section.heading }}</h5>
-                            <ul class="mb-0 ps-3">
-                                {% if section.heading == 'Milestones' %}
-                                    {% for item in section.items %}
-                                        <li class="mb-2"><span class="badge bg-success me-2">Milestone</span> <span class="fw-semibold">{{ item }}</span></li>
-                                    {% endfor %}
-                                {% elif section.heading == 'Suggested Study Plan' %}
-                                    {% for item in section.items %}
-                                        <li class="mb-2"><span class="badge bg-primary me-2">Outcome</span> <span class="fw-semibold">{{ item }}</span></li>
-                                    {% endfor %}
-                                {% elif section.heading == 'Practice Questions' %}
-                                    <div class="accordion" id="practiceQuestionsAccordion">
-                                        {% for item in section.items %}
-                                            <div class="accordion-item">
-                                                <h2 class="accordion-header" id="heading{{ forloop.counter }}">
-                                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse{{ forloop.counter }}">
-                                                        Question {{ forloop.counter }}
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading{{ forloop.counter }}" data-bs-parent="#practiceQuestionsAccordion">
-                                                    <div class="accordion-body">{{ item|safe }}</div>
-                                                </div>
-                                            </div>
-                                        {% endfor %}
-                                    </div>
-                                {% else %}
-                                    {% for item in section.items %}
-                                        <li class="mb-2">{{ item }}</li>
-                                    {% endfor %}
-                                {% endif %}
-                            </ul>
+            {% if plan %}
+                {% if active_planner_request %}
+                    <div class="soft-card p-3 mb-3">
+                        <div class="d-flex flex-wrap justify-content-between gap-2">
+                            <div>
+                                <div class="fw-semibold">{{ active_planner_request.subject }}</div>
+                                <div class="task-meta">Difficulty: {{ active_planner_request.difficulty }}</div>
+                            </div>
+                            <div class="task-meta">{{ active_planner_request.created_at|date:"d M Y, h:i A" }}</div>
                         </div>
-                    {% endfor %}
+                    </div>
+                {% endif %}
+                <div class="soft-card p-4" style="line-height: 1.75;">
+                    {{ plan|linebreaks }}
                 </div>
             {% else %}
                 <div class="empty-state">

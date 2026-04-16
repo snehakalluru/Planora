@@ -1,6 +1,8 @@
 from datetime import timedelta
 from io import BytesIO
+from unittest.mock import Mock, patch
 
+import requests
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -8,8 +10,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from . import chatbot
 from .management.commands.send_reminders import Command
-from .models import StudyResource, Task
+from .models import DailyTimetableTask, PlannerRequest, StudyResource, Task
 
 
 class TaskViewTests(TestCase):
@@ -82,7 +85,16 @@ class TaskViewTests(TestCase):
 
         self.assertFalse(task.reminder_sent)
 
-    def test_chatbot_generates_plan_without_pdf(self):
+    @patch("tasks.views.generate_exam_plan")
+    def test_chatbot_generates_plan_without_pdf(self, mock_generate_exam_plan):
+        mock_generate_exam_plan.return_value = (
+            "IMPORTANT TOPICS\n"
+            "- Motion\n"
+            "\n"
+            "EXAM-LEVEL QUESTIONS\n"
+            "- Explain Newton's laws with an example."
+        )
+
         response = self.client.post(
             reverse("chatbot"),
             {
@@ -94,10 +106,19 @@ class TaskViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "AI Exam Planner for Physics")
+        self.assertContains(response, "IMPORTANT TOPICS")
+        self.assertContains(response, "Explain Newton&#x27;s laws with an example.")
         self.assertContains(response, "Recent Planner Requests")
+        mock_generate_exam_plan.assert_called_once_with(
+            "Physics",
+            "Motion, Force, Energy",
+            "Medium",
+            "",
+        )
 
-    def test_chatbot_accepts_pdf_upload_and_saves_resource(self):
+    @patch("tasks.views.generate_exam_plan")
+    def test_chatbot_accepts_pdf_upload_and_saves_resource(self, mock_generate_exam_plan):
+        mock_generate_exam_plan.return_value = "REVISION NOTES\n- Algebra identities"
         pdf_content = (
             b"%PDF-1.4\n"
             b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
@@ -122,6 +143,310 @@ class TaskViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(StudyResource.objects.filter(user=self.user).exists())
+        self.assertContains(response, "REVISION NOTES")
+
+    @patch("tasks.views.generate_exam_plan")
+    def test_chatbot_shows_latest_generated_plan_in_response_panel(self, mock_generate_exam_plan):
+        PlannerRequest.objects.create(
+            user=self.user,
+            subject="Chemistry",
+            topics="Atoms, Bonds",
+            difficulty="Easy",
+            response="OLD PLAN",
+        )
+        mock_generate_exam_plan.return_value = "NEW PLAN"
+
+        response = self.client.post(
+            reverse("chatbot"),
+            {
+                "subject": "Physics",
+                "topics": "Motion, Force",
+                "difficulty": "Medium",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "NEW PLAN")
+        self.assertContains(response, "Physics")
+        requests = list(response.context["requests"])
+        self.assertTrue(all(req.response != "NEW PLAN" for req in requests))
+
+    def test_chatbot_get_uses_active_saved_plan_for_response_panel(self):
+        latest_request = PlannerRequest.objects.create(
+            user=self.user,
+            subject="Biology",
+            topics="Cells, Genetics",
+            difficulty="Hard",
+            response="BIO PLAN",
+        )
+        session = self.client.session
+        session["active_planner_request_id"] = latest_request.pk
+        session.save()
+
+        response = self.client.get(reverse("chatbot"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "BIO PLAN")
+        self.assertEqual(response.context["active_planner_request"], latest_request)
+
+    @patch("tasks.views.generate_exam_plan")
+    def test_chatbot_does_not_call_api_when_form_is_invalid(self, mock_generate_exam_plan):
+        response = self.client.post(
+            reverse("chatbot"),
+            {
+                "subject": "",
+                "topics": "",
+                "difficulty": "Medium",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required.")
+        mock_generate_exam_plan.assert_not_called()
+
+    @patch("tasks.views.generate_exam_plan")
+    def test_chatbot_shows_api_failure_message_without_crashing(self, mock_generate_exam_plan):
+        mock_generate_exam_plan.side_effect = RuntimeError("OpenRouter returned an empty response.")
+
+        response = self.client.post(
+            reverse("chatbot"),
+            {
+                "subject": "Physics",
+                "topics": "Motion",
+                "difficulty": "Medium",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Could not generate the exam plan: OpenRouter returned an empty response.")
+        self.assertFalse(
+            PlannerRequest.objects.filter(user=self.user, subject="Physics", topics="Motion").exists()
+        )
+
+
+class ChatbotServiceTests(TestCase):
+    @patch.object(chatbot, "OPENROUTER_API_KEY", "")
+    def test_call_openrouter_requires_api_key(self):
+        with self.assertRaisesMessage(RuntimeError, "OPENROUTER_API_KEY is not configured."):
+            chatbot._call_openrouter("test prompt")
+
+    @patch("tasks.chatbot.requests.post")
+    @patch.object(chatbot, "OPENROUTER_API_KEY", "test-key")
+    def test_call_openrouter_raises_runtime_error_on_http_failure(self, mock_post):
+        mock_post.side_effect = requests.RequestException("boom")
+
+        with self.assertRaisesMessage(RuntimeError, "OpenRouter API request failed: boom"):
+            chatbot._call_openrouter("test prompt")
+
+    @patch("tasks.chatbot.requests.post")
+    @patch.object(chatbot, "OPENROUTER_API_KEY", "test-key")
+    def test_call_openrouter_raises_runtime_error_on_missing_content(self, mock_post):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {"choices": [{"message": {}}]}
+        mock_post.return_value = mock_response
+
+        with self.assertRaisesMessage(RuntimeError, "OpenRouter returned an empty response."):
+            chatbot._call_openrouter("test prompt")
+
+    @patch("tasks.chatbot.requests.post")
+    @patch.object(chatbot, "OPENROUTER_API_KEY", "test-key")
+    def test_call_openrouter_returns_response_text(self, mock_post):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "Generated plan text"}}]
+        }
+        mock_post.return_value = mock_response
+
+        self.assertEqual(chatbot._call_openrouter("test prompt"), "Generated plan text")
+
+    @patch("tasks.chatbot.requests.post")
+    @patch.object(chatbot, "OPENROUTER_API_KEY", "test-key")
+    def test_call_openrouter_supports_list_content(self, mock_post):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "Part one"},
+                            {"type": "text", "text": "Part two"},
+                        ]
+                    }
+                }
+            ]
+        }
+        mock_post.return_value = mock_response
+
+        self.assertEqual(chatbot._call_openrouter("test prompt"), "Part one\nPart two")
+
+
+class DailyTimetableViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="planner", password="Testpass123")
+        self.other_user = User.objects.create_user(username="otherplanner", password="Testpass123")
+        self.client.login(username="planner", password="Testpass123")
+
+    def test_timetable_lists_only_current_users_tasks_in_time_order(self):
+        DailyTimetableTask.objects.create(
+            user=self.user,
+            title="Practice coding",
+            start_time="14:00",
+            end_time="15:00",
+        )
+        early_task = DailyTimetableTask.objects.create(
+            user=self.user,
+            title="Wake up",
+            start_time="06:00",
+            end_time="06:30",
+        )
+        DailyTimetableTask.objects.create(
+            user=self.other_user,
+            title="Other user task",
+            start_time="08:00",
+            end_time="09:00",
+        )
+
+        response = self.client.get(reverse("timetable"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Wake up")
+        self.assertNotContains(response, "Other user task")
+        tasks = list(response.context["timetable_tasks"])
+        self.assertEqual(tasks[0], early_task)
+
+    def test_timetable_create_saves_task(self):
+        response = self.client.post(
+            reverse("timetable_task_add"),
+            {
+                "title": "Study DBMS",
+                "start_time": "07:00",
+                "end_time": "09:00",
+                "description": "Normalization and transactions",
+                "completed": "",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(DailyTimetableTask.objects.filter(user=self.user, title="Study DBMS").exists())
+        self.assertContains(response, "Timetable task added successfully.")
+
+    def test_timetable_edit_updates_task(self):
+        task = DailyTimetableTask.objects.create(
+            user=self.user,
+            title="Break",
+            start_time="10:00",
+            end_time="10:30",
+        )
+
+        response = self.client.post(
+            reverse("timetable_task_edit", args=[task.pk]),
+            {
+                "title": "Short Break",
+                "start_time": "10:15",
+                "end_time": "10:45",
+                "description": "Tea time",
+                "completed": "on",
+            },
+            follow=True,
+        )
+        task.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(task.title, "Short Break")
+        self.assertTrue(task.completed)
+
+    def test_timetable_delete_removes_task(self):
+        task = DailyTimetableTask.objects.create(
+            user=self.user,
+            title="Delete me",
+            start_time="11:00",
+            end_time="12:00",
+        )
+
+        response = self.client.post(reverse("timetable_task_delete", args=[task.pk]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(DailyTimetableTask.objects.filter(pk=task.pk).exists())
+
+    def test_timetable_toggle_changes_completed_state(self):
+        task = DailyTimetableTask.objects.create(
+            user=self.user,
+            title="Complete me",
+            start_time="13:00",
+            end_time="14:00",
+        )
+
+        response = self.client.post(reverse("timetable_task_toggle", args=[task.pk]), follow=True)
+        task.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(task.completed)
+
+    def test_timetable_form_validates_end_time_after_start_time(self):
+        response = self.client.post(
+            reverse("timetable_task_add"),
+            {
+                "title": "Invalid slot",
+                "start_time": "15:00",
+                "end_time": "14:00",
+                "description": "",
+                "completed": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "End time must be later than start time.")
+
+    def test_timetable_form_requires_title_and_times(self):
+        response = self.client.post(
+            reverse("timetable_task_add"),
+            {
+                "title": "",
+                "start_time": "",
+                "end_time": "",
+                "description": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required.", count=3)
+
+
+class ExamPlannerFormTests(TestCase):
+    def test_exam_planner_form_allows_missing_file(self):
+        from .forms import ExamPlannerForm
+
+        form = ExamPlannerForm(
+            data={
+                "subject": "Maths",
+                "topics": "Algebra, Calculus",
+                "difficulty": "Easy",
+            }
+        )
+
+        self.assertTrue(form.is_valid())
+
+    def test_exam_planner_form_rejects_non_pdf_upload(self):
+        from .forms import ExamPlannerForm
+
+        upload = SimpleUploadedFile("notes.txt", b"text", content_type="text/plain")
+        form = ExamPlannerForm(
+            data={
+                "subject": "Maths",
+                "topics": "Algebra, Calculus",
+                "difficulty": "Easy",
+            },
+            files={"file": upload},
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("Only PDF files are allowed.", form.errors["file"])
 
 
 @override_settings(

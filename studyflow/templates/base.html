@@ -107,6 +107,23 @@
             background: rgba(22, 163, 74, 0.14);
             color: #15803d;
         }
+        .timetable-row-completed {
+            background: rgba(22, 163, 74, 0.08);
+        }
+        .timetable-row-completed .task-title {
+            text-decoration: line-through;
+            color: #64748b;
+        }
+        .time-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.38rem 0.8rem;
+            background: rgba(31, 75, 216, 0.08);
+            color: var(--sf-primary-dark);
+            font-size: 0.84rem;
+            font-weight: 600;
+        }
         .empty-state {
             border: 1px dashed var(--sf-border);
             border-radius: 1rem;
@@ -152,6 +169,7 @@
                         <li class="nav-item"><a class="nav-link" href="{% url 'task_list' %}">Tasks</a></li>
                         <li class="nav-item"><a class="nav-link" href="{% url 'calendar' %}">Calendar</a></li>
                         <li class="nav-item"><a class="nav-link" href="{% url 'chatbot' %}">Exam Planner</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'timetable' %}">Timetable</a></li>
                     {% endif %}
                 </ul>
                 <div class="d-flex gap-2">

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Timetable | StudyFlow{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <div class="page-eyebrow mb-2">Daily Planner</div>
+        <h2 class="fw-bold mb-1">Your Daily Timetable</h2>
+        <p class="text-secondary mb-0">Plan your routine, keep each time block visible, and track what is done.</p>
+    </div>
+    <a href="{% url 'timetable_task_add' %}" class="btn btn-primary">Add Task</a>
+</div>
+
+<div class="card content-card p-4">
+    {% if timetable_tasks %}
+        <div class="table-responsive">
+            <table class="table align-middle task-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in timetable_tasks %}
+                        <tr class="{% if task.completed %}timetable-row-completed{% endif %}">
+                            <td>
+                                <div class="time-pill">{{ task.start_time|time:"h:i A" }} - {{ task.end_time|time:"h:i A" }}</div>
+                            </td>
+                            <td>
+                                <div class="fw-semibold task-title">{{ task.title }}</div>
+                                <div class="task-meta">{{ task.description|default:"No description provided."|truncatechars:110 }}</div>
+                            </td>
+                            <td>
+                                <span class="status-pill {% if task.completed %}Completed{% else %}Pending{% endif %}">
+                                    {% if task.completed %}Completed{% else %}Pending{% endif %}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex justify-content-end flex-wrap gap-2">
+                                    <form method="post" action="{% url 'timetable_task_toggle' task.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm {% if task.completed %}btn-outline-secondary{% else %}btn-outline-success{% endif %}">
+                                            {% if task.completed %}Mark Pending{% else %}Mark as Done{% endif %}
+                                        </button>
+                                    </form>
+                                    <a href="{% url 'timetable_task_edit' task.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                    <a href="{% url 'timetable_task_delete' task.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h5 class="fw-bold">No timetable tasks yet</h5>
+            <p class="mb-3">Add your first daily time block and build a clear routine for the day.</p>
+            <a href="{% url 'timetable_task_add' %}" class="btn btn-primary">Create Timetable</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

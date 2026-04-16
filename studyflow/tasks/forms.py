@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Task
+from .models import DailyTimetableTask, Task
 
 
 class TaskForm(forms.ModelForm):
@@ -77,3 +77,45 @@ class ExamPlannerForm(forms.Form):
         if uploaded_file and not uploaded_file.name.lower().endswith(".pdf"):
             raise forms.ValidationError("Only PDF files are allowed.")
         return uploaded_file
+
+
+class DailyTimetableTaskForm(forms.ModelForm):
+    start_time = forms.TimeField(
+        widget=forms.TimeInput(attrs={"type": "time"}, format="%H:%M")
+    )
+    end_time = forms.TimeField(
+        widget=forms.TimeInput(attrs={"type": "time"}, format="%H:%M")
+    )
+
+    class Meta:
+        model = DailyTimetableTask
+        fields = ["title", "start_time", "end_time", "description", "completed"]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "form-control")
+        self.fields["completed"].widget.attrs["class"] = "form-check-input"
+        self.fields["title"].widget.attrs["placeholder"] = "Example: Study DBMS"
+        self.fields["description"].widget.attrs["placeholder"] = "Optional notes for this time block"
+
+        if self.instance and self.instance.pk and self.instance.start_time:
+            self.initial["start_time"] = self.instance.start_time.strftime("%H:%M")
+        if self.instance and self.instance.pk and self.instance.end_time:
+            self.initial["end_time"] = self.instance.end_time.strftime("%H:%M")
+
+    def clean_title(self):
+        return self.cleaned_data["title"].strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_time = cleaned_data.get("start_time")
+        end_time = cleaned_data.get("end_time")
+
+        if start_time and end_time and start_time >= end_time:
+            self.add_error("end_time", "End time must be later than start time.")
+
+        return cleaned_data

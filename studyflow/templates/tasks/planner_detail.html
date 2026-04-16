@@ -21,7 +21,9 @@
     <hr>
     <div class="mb-3">
         <span class="fw-semibold">Full Response:</span>
-        <pre style="white-space: pre-wrap; background: #f8f9fa; padding: 1em; border-radius: 8px;">{{ planner_request.response|safe }}</pre>
+        <div class="soft-card p-4 mt-2" style="line-height: 1.75;">
+            {{ planner_request.response|linebreaks }}
+        </div>
     </div>
     <form method="post" action="{% url 'delete_planner_request' planner_request.id %}">
         {% csrf_token %}

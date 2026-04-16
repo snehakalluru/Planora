@@ -1,22 +1,36 @@
-from .models import NotificationSubscription, StudyResource, Task, PlannerRequest
-# Planner history management views
-from django.shortcuts import get_object_or_404, redirect
-from django.contrib import messages
-from django.urls import reverse
+import json
+from collections import OrderedDict
+from datetime import timedelta
 
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from django.contrib.auth.decorators import login_required
+from .chatbot import generate_exam_plan
+from .file_utils import extract_text_from_pdf
+from .forms import DailyTimetableTaskForm, ExamPlannerForm, TaskForm
+from .management.commands.send_reminders import send_due_reminders
+from .models import DailyTimetableTask, NotificationSubscription, PlannerRequest, StudyResource, Task
+
 
 @login_required
 def planner_history(request):
     requests = PlannerRequest.objects.filter(user=request.user)
     return render(request, "tasks/planner_history.html", {"requests": requests})
 
+
 @login_required
 def planner_detail(request, pk):
     planner_request = get_object_or_404(PlannerRequest, pk=pk, user=request.user)
     return render(request, "tasks/planner_detail.html", {"planner_request": planner_request})
+
 
 @login_required
 @require_POST
@@ -25,25 +39,6 @@ def delete_planner_request(request, pk):
     planner_request.delete()
     messages.success(request, "Planner request deleted.")
     return redirect(reverse("planner_history"))
-from collections import OrderedDict
-from datetime import timedelta
-import json
-
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.conf import settings
-from django.db.models import Count, Q
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
-from django.template.loader import render_to_string
-from django.utils import timezone
-from django.views.decorators.http import require_POST
-
-from .chatbot import generate_plan
-from .file_utils import extract_text_from_pdf
-from .forms import ExamPlannerForm, TaskForm
-from .management.commands.send_reminders import send_due_reminders
-from .models import NotificationSubscription, StudyResource, Task
 
 
 def _get_filtered_tasks(request):
@@ -190,6 +185,75 @@ def task_toggle_status_view(request, pk):
 
 
 @login_required
+def timetable_view(request):
+    timetable_tasks = DailyTimetableTask.objects.filter(user=request.user).order_by("start_time", "end_time")
+    return render(request, "tasks/timetable.html", {"timetable_tasks": timetable_tasks})
+
+
+@login_required
+def timetable_task_create_view(request):
+    if request.method == "POST":
+        form = DailyTimetableTaskForm(request.POST)
+        if form.is_valid():
+            timetable_task = form.save(commit=False)
+            timetable_task.user = request.user
+            timetable_task.save()
+            messages.success(request, "Timetable task added successfully.")
+            return redirect("timetable")
+    else:
+        form = DailyTimetableTaskForm()
+
+    return render(
+        request,
+        "tasks/timetable_form.html",
+        {"form": form, "page_title": "Add Timetable Task"},
+    )
+
+
+@login_required
+def timetable_task_update_view(request, pk):
+    timetable_task = get_object_or_404(DailyTimetableTask, pk=pk, user=request.user)
+
+    if request.method == "POST":
+        form = DailyTimetableTaskForm(request.POST, instance=timetable_task)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Timetable task updated successfully.")
+            return redirect("timetable")
+    else:
+        form = DailyTimetableTaskForm(instance=timetable_task)
+
+    return render(
+        request,
+        "tasks/timetable_form.html",
+        {"form": form, "page_title": "Edit Timetable Task", "timetable_task": timetable_task},
+    )
+
+
+@login_required
+def timetable_task_delete_view(request, pk):
+    timetable_task = get_object_or_404(DailyTimetableTask, pk=pk, user=request.user)
+
+    if request.method == "POST":
+        timetable_task.delete()
+        messages.success(request, "Timetable task deleted successfully.")
+        return redirect("timetable")
+
+    return render(request, "tasks/timetable_confirm_delete.html", {"timetable_task": timetable_task})
+
+
+@login_required
+@require_POST
+def timetable_task_toggle_completed_view(request, pk):
+    timetable_task = get_object_or_404(DailyTimetableTask, pk=pk, user=request.user)
+    timetable_task.completed = not timetable_task.completed
+    timetable_task.save(update_fields=["completed", "updated_at"])
+    status_label = "completed" if timetable_task.completed else "pending"
+    messages.success(request, f'Timetable task "{timetable_task.title}" marked as {status_label}.')
+    return redirect(request.META.get("HTTP_REFERER", "timetable"))
+
+
+@login_required
 def calendar_view(request):
     tasks = Task.objects.filter(user=request.user).order_by("deadline")
     grouped_tasks = OrderedDict()
@@ -200,35 +264,11 @@ def calendar_view(request):
     return render(request, "tasks/calendar.html", {"grouped_tasks": grouped_tasks})
 
 
-def _format_chatbot_response(raw_response):
-    sections = []
-    current_heading = None
-    current_items = []
-
-    for line in raw_response.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.startswith("#"):
-            if current_heading:
-                sections.append({"heading": current_heading, "items": current_items})
-            current_heading = stripped.lstrip("#").strip()
-            current_items = []
-        elif stripped.startswith("- "):
-            current_items.append(stripped[2:])
-        else:
-            current_items.append(stripped)
-
-    if current_heading:
-        sections.append({"heading": current_heading, "items": current_items})
-
-    return sections
-
-
 @login_required
 def chatbot_view(request):
-    response_sections = None
+    plan = None
     uploaded_resource = None
+    active_planner_request = None
     history = request.session.get("chatbot_history", [])
 
     if request.method == "POST":
@@ -242,38 +282,60 @@ def chatbot_view(request):
 
             if uploaded_file:
                 uploaded_resource = StudyResource.objects.create(user=request.user, file=uploaded_file)
-                resource_text = extract_text_from_pdf(uploaded_resource.file)
+                try:
+                    resource_text = extract_text_from_pdf(uploaded_resource.file)
+                except Exception as exc:
+                    messages.warning(request, f"PDF processing failed: {exc}")
+                    resource_text = ""
 
-            raw_response = generate_plan(subject, topics, difficulty, resource_text)
-            response_sections = _format_chatbot_response(raw_response)
+            try:
+                plan = generate_exam_plan(subject, topics, difficulty, resource_text)
+            except Exception as exc:
+                messages.error(request, f"Could not generate the exam plan: {exc}")
 
-            # Save to PlannerRequest
-            PlannerRequest.objects.create(
-                user=request.user,
-                subject=subject,
-                topics=topics,
-                difficulty=difficulty,
-                response=raw_response,
-            )
+            if plan:
+                active_planner_request = PlannerRequest.objects.create(
+                    user=request.user,
+                    subject=subject,
+                    topics=topics,
+                    difficulty=difficulty,
+                    response=plan,
+                )
+                request.session["active_planner_request_id"] = active_planner_request.pk
 
-            history_entry = {
-                "subject": subject,
-                "difficulty": difficulty,
-                "topics": topics,
-            }
-            history = [history_entry] + history[:4]
-            request.session["chatbot_history"] = history
-            request.session.modified = True
-            messages.success(request, "Your AI exam planner has been generated.")
+                history_entry = {
+                    "subject": subject,
+                    "difficulty": difficulty,
+                    "topics": topics,
+                }
+                history = [history_entry] + history[:4]
+                request.session["chatbot_history"] = history
+                request.session.modified = True
+                messages.success(request, "Your AI exam planner has been generated.")
     else:
         form = ExamPlannerForm()
+        active_request_id = request.session.get("active_planner_request_id")
+        if active_request_id:
+            active_planner_request = PlannerRequest.objects.filter(
+                pk=active_request_id,
+                user=request.user,
+            ).first()
 
-    # Pass recent planner requests for this user
-    requests = PlannerRequest.objects.filter(user=request.user).order_by('-created_at')[:5]
+    if not active_planner_request:
+        active_planner_request = PlannerRequest.objects.filter(user=request.user).order_by("-created_at").first()
+
+    if active_planner_request and not plan:
+        plan = active_planner_request.response
+
+    requests = PlannerRequest.objects.filter(user=request.user)
+    if active_planner_request:
+        requests = requests.exclude(pk=active_planner_request.pk)
+    requests = requests.order_by("-created_at")[:5]
     context = {
         "form": form,
-        "response_sections": response_sections,
+        "plan": plan,
         "uploaded_resource": uploaded_resource,
+        "active_planner_request": active_planner_request,
         "chat_history": history,
         "requests": requests,
     }

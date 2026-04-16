@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from django.conf import settings
@@ -7,6 +8,8 @@ from django.utils import timezone
 
 from tasks.models import Task
 from tasks.notification_utils import send_push_notification
+
+logger = logging.getLogger(__name__)
 
 
 def send_due_reminders():
@@ -37,13 +40,21 @@ def send_due_reminders():
             "Please log in to StudyFlow and take action."
         )
 
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[task.user.email],
-            fail_silently=False,
-        )
+        try:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[task.user.email],
+                fail_silently=False,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Reminder email failed for task %s and user %s: %s",
+                task.pk,
+                task.user.email,
+                exc,
+            )
 
         send_push_notification(
             task.user,

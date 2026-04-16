@@ -11,7 +11,10 @@ if ENV_FILE.exists():
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip())
+        key = key.strip()
+        value = value.strip()
+        # Use direct assignment to ensure .env values override any existing environment variables
+        os.environ[key] = value
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-studyflow-dev-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
@@ -91,7 +94,10 @@ LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "home"
 LOGIN_URL = "login"
 
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_BACKEND = os.getenv(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend" if DEBUG else "django.core.mail.backends.smtp.EmailBackend",
+)
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
