@@ -102,7 +102,10 @@ def _extract_message_text(message):
 
 def _call_openrouter(prompt):
     if not OPENROUTER_API_KEY:
-        raise RuntimeError("OPENROUTER_API_KEY is not configured.")
+        logger.error("OpenRouter API key is missing.")
+        raise RuntimeError("Unable to generate plan. Please try again.")
+
+    logger.info("API request sent to OpenRouter model=%s", OPENROUTER_MODEL)
 
     try:
         response = requests.post(
@@ -120,31 +123,38 @@ def _call_openrouter(prompt):
         )
         response.raise_for_status()
         payload = response.json()
+        logger.info("API response received from OpenRouter status=%s", response.status_code)
     except requests.HTTPError as exc:
         try:
             error_payload = exc.response.json()
             error_message = error_payload.get("error", {}).get("message") or str(exc)
         except ValueError:
             error_message = str(exc)
-        raise RuntimeError(f"OpenRouter API request failed: {error_message}") from exc
+        logger.exception("OpenRouter HTTP error: %s", error_message)
+        raise RuntimeError("Unable to generate plan. Please try again.") from exc
     except requests.RequestException as exc:
-        raise RuntimeError(f"OpenRouter API request failed: {exc}") from exc
+        logger.exception("OpenRouter request error: %s", exc)
+        raise RuntimeError("Unable to generate plan. Please try again.") from exc
     except ValueError as exc:
-        raise RuntimeError("OpenRouter returned an invalid JSON response.") from exc
+        logger.exception("OpenRouter returned invalid JSON.")
+        raise RuntimeError("Unable to generate plan. Please try again.") from exc
 
     try:
         text = _extract_message_text(payload["choices"][0]["message"])
     except (KeyError, IndexError, AttributeError, TypeError) as exc:
-        raise RuntimeError("OpenRouter returned an invalid response format.") from exc
+        logger.exception("OpenRouter returned invalid response format.")
+        raise RuntimeError("Unable to generate plan. Please try again.") from exc
 
     if not text:
-        raise RuntimeError("OpenRouter returned an empty response.")
+        logger.error("OpenRouter returned an empty response.")
+        raise RuntimeError("Unable to generate plan. Please try again.")
 
     logger.info("OpenRouter response generated successfully with %d characters.", len(text))
     return text
 
 
 def generate_exam_plan(subject, topics, level, file_text=None):
+    logger.info("Generating exam plan with OpenRouter for subject=%s difficulty=%s", subject, level)
     prompt = _build_prompt(
         subject=subject,
         topics=topics,

@@ -8,3 +8,5 @@ studyflow/.env
 studyflow/media/
 studyflow/runserver.log
 studyflow/runserver.err.log
+studyflow/runserver_*.log
+studyflow/runserver_*.err.log

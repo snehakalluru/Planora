@@ -172,23 +172,28 @@ class TaskViewTests(TestCase):
         requests = list(response.context["requests"])
         self.assertTrue(all(req.response != "NEW PLAN" for req in requests))
 
-    def test_chatbot_get_uses_active_saved_plan_for_response_panel(self):
-        latest_request = PlannerRequest.objects.create(
+    def test_chatbot_get_shows_empty_state_without_fresh_plan(self):
+        response = self.client.get(reverse("chatbot"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No planner generated yet")
+        self.assertEqual(response.context["plan"], "")
+        self.assertIsNone(response.context["active_planner_request"])
+
+    def test_chatbot_page_includes_timetable_section(self):
+        DailyTimetableTask.objects.create(
             user=self.user,
-            subject="Biology",
-            topics="Cells, Genetics",
-            difficulty="Hard",
-            response="BIO PLAN",
+            title="Morning Revision",
+            start_time="07:00",
+            end_time="08:00",
+            description="Review formulas",
         )
-        session = self.client.session
-        session["active_planner_request_id"] = latest_request.pk
-        session.save()
 
         response = self.client.get(reverse("chatbot"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "BIO PLAN")
-        self.assertEqual(response.context["active_planner_request"], latest_request)
+        self.assertContains(response, "Your Daily Timetable")
+        self.assertContains(response, "Morning Revision")
 
     @patch("tasks.views.generate_exam_plan")
     def test_chatbot_does_not_call_api_when_form_is_invalid(self, mock_generate_exam_plan):
@@ -207,7 +212,7 @@ class TaskViewTests(TestCase):
 
     @patch("tasks.views.generate_exam_plan")
     def test_chatbot_shows_api_failure_message_without_crashing(self, mock_generate_exam_plan):
-        mock_generate_exam_plan.side_effect = RuntimeError("OpenRouter returned an empty response.")
+        mock_generate_exam_plan.side_effect = RuntimeError("Unable to generate plan. Please try again.")
 
         response = self.client.post(
             reverse("chatbot"),
@@ -220,7 +225,8 @@ class TaskViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Could not generate the exam plan: OpenRouter returned an empty response.")
+        self.assertContains(response, "Unable to generate plan. Please try again.")
+        self.assertContains(response, "No planner generated yet")
         self.assertFalse(
             PlannerRequest.objects.filter(user=self.user, subject="Physics", topics="Motion").exists()
         )
@@ -229,7 +235,7 @@ class TaskViewTests(TestCase):
 class ChatbotServiceTests(TestCase):
     @patch.object(chatbot, "OPENROUTER_API_KEY", "")
     def test_call_openrouter_requires_api_key(self):
-        with self.assertRaisesMessage(RuntimeError, "OPENROUTER_API_KEY is not configured."):
+        with self.assertRaisesMessage(RuntimeError, "Unable to generate plan. Please try again."):
             chatbot._call_openrouter("test prompt")
 
     @patch("tasks.chatbot.requests.post")
@@ -237,7 +243,7 @@ class ChatbotServiceTests(TestCase):
     def test_call_openrouter_raises_runtime_error_on_http_failure(self, mock_post):
         mock_post.side_effect = requests.RequestException("boom")
 
-        with self.assertRaisesMessage(RuntimeError, "OpenRouter API request failed: boom"):
+        with self.assertRaisesMessage(RuntimeError, "Unable to generate plan. Please try again."):
             chatbot._call_openrouter("test prompt")
 
     @patch("tasks.chatbot.requests.post")
@@ -248,7 +254,7 @@ class ChatbotServiceTests(TestCase):
         mock_response.json.return_value = {"choices": [{"message": {}}]}
         mock_post.return_value = mock_response
 
-        with self.assertRaisesMessage(RuntimeError, "OpenRouter returned an empty response."):
+        with self.assertRaisesMessage(RuntimeError, "Unable to generate plan. Please try again."):
             chatbot._call_openrouter("test prompt")
 
     @patch("tasks.chatbot.requests.post")

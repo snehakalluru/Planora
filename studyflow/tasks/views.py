@@ -1,4 +1,5 @@
 import json
+import logging
 from collections import OrderedDict
 from datetime import timedelta
 
@@ -18,6 +19,27 @@ from .file_utils import extract_text_from_pdf
 from .forms import DailyTimetableTaskForm, ExamPlannerForm, TaskForm
 from .management.commands.send_reminders import send_due_reminders
 from .models import DailyTimetableTask, NotificationSubscription, PlannerRequest, StudyResource, Task
+
+logger = logging.getLogger(__name__)
+
+
+def _clear_stale_planner_messages(request):
+    preserved_messages = []
+    stale_fragments = (
+        "Gemini could not generate",
+        "Gemini API request failed",
+        "Gemini",
+    )
+
+    for message in messages.get_messages(request):
+        message_text = str(message)
+        if any(fragment in message_text for fragment in stale_fragments):
+            logger.info("Cleared stale planner message: %s", message_text)
+            continue
+        preserved_messages.append((message.level, message_text, message.extra_tags))
+
+    for level, message_text, extra_tags in preserved_messages:
+        messages.add_message(request, level, message_text, extra_tags=extra_tags)
 
 
 @login_required
@@ -266,10 +288,12 @@ def calendar_view(request):
 
 @login_required
 def chatbot_view(request):
-    plan = None
+    logger.info("VIEW EXECUTED: tasks.views.chatbot_view")
+    _clear_stale_planner_messages(request)
+
+    plan = ""
     uploaded_resource = None
     active_planner_request = None
-    history = request.session.get("chatbot_history", [])
 
     if request.method == "POST":
         form = ExamPlannerForm(request.POST, request.FILES)
@@ -289,9 +313,13 @@ def chatbot_view(request):
                     resource_text = ""
 
             try:
+                logger.info("Exam planner request routed to OpenRouter.")
                 plan = generate_exam_plan(subject, topics, difficulty, resource_text)
+                logger.info("OpenRouter response passed to template: %s", plan[:500])
             except Exception as exc:
-                messages.error(request, f"Could not generate the exam plan: {exc}")
+                logger.exception("OpenRouter exam planner request failed: %s", exc)
+                messages.error(request, "Unable to generate plan. Please try again.")
+                plan = ""
 
             if plan:
                 active_planner_request = PlannerRequest.objects.create(
@@ -301,43 +329,26 @@ def chatbot_view(request):
                     difficulty=difficulty,
                     response=plan,
                 )
-                request.session["active_planner_request_id"] = active_planner_request.pk
-
-                history_entry = {
-                    "subject": subject,
-                    "difficulty": difficulty,
-                    "topics": topics,
-                }
-                history = [history_entry] + history[:4]
-                request.session["chatbot_history"] = history
-                request.session.modified = True
                 messages.success(request, "Your AI exam planner has been generated.")
     else:
         form = ExamPlannerForm()
-        active_request_id = request.session.get("active_planner_request_id")
-        if active_request_id:
-            active_planner_request = PlannerRequest.objects.filter(
-                pk=active_request_id,
-                user=request.user,
-            ).first()
 
-    if not active_planner_request:
-        active_planner_request = PlannerRequest.objects.filter(user=request.user).order_by("-created_at").first()
-
-    if active_planner_request and not plan:
-        plan = active_planner_request.response
+    if not plan:
+        plan = ""
 
     requests = PlannerRequest.objects.filter(user=request.user)
     if active_planner_request:
         requests = requests.exclude(pk=active_planner_request.pk)
     requests = requests.order_by("-created_at")[:5]
+    timetable_tasks = DailyTimetableTask.objects.filter(user=request.user).order_by("start_time", "end_time")
     context = {
         "form": form,
         "plan": plan,
         "uploaded_resource": uploaded_resource,
         "active_planner_request": active_planner_request,
-        "chat_history": history,
+        "chat_history": [],
         "requests": requests,
+        "timetable_tasks": timetable_tasks,
     }
     return render(request, "tasks/chatbot.html", context)
 
