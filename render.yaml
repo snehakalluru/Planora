@@ -11,5 +11,7 @@ services:
         value: "False"
       - key: ALLOWED_HOSTS
         value: "*"
+      - key: OPENROUTER_API_KEY
+        sync: false
       - key: RENDER
         value: "true"
