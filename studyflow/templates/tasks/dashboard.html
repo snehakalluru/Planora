@@ -96,6 +96,35 @@
             </div>
         </div>
 
+        <div class="row g-4 mb-4">
+            <div class="col-xl-7">
+                <div class="card content-card chart-card p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h4 class="section-title">Weekly Completion</h4>
+                            <div class="task-meta">Tasks completed over the last seven days.</div>
+                        </div>
+                    </div>
+                    <div class="chart-shell">
+                        <canvas id="taskChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-5">
+                <div class="card content-card chart-card p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h4 class="section-title">Study Progress Trend</h4>
+                            <div class="task-meta">Completion percentage trend across the same period.</div>
+                        </div>
+                    </div>
+                    <div class="chart-shell">
+                        <canvas id="progressChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card content-card p-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
@@ -270,6 +299,10 @@
     </div>
 </div>
 
+{{ chart_labels|json_script:"dashboard-chart-labels" }}
+{{ chart_completed_counts|json_script:"dashboard-chart-counts" }}
+{{ chart_progress_percentages|json_script:"dashboard-chart-progress" }}
+
 <script>
     function getCookie(name) {
         const value = `; ${document.cookie}`;
@@ -361,5 +394,149 @@
             }
         });
     }
+
+    function parseChartData(elementId) {
+        const node = document.getElementById(elementId);
+        return node ? JSON.parse(node.textContent) : [];
+    }
+
+    const chartLabels = parseChartData("dashboard-chart-labels");
+    const chartCounts = parseChartData("dashboard-chart-counts");
+    const chartProgress = parseChartData("dashboard-chart-progress");
+    const dashboardCharts = [];
+
+    function getThemeColor(variableName) {
+        return getComputedStyle(document.body).getPropertyValue(variableName).trim();
+    }
+
+    function destroyDashboardCharts() {
+        while (dashboardCharts.length) {
+            dashboardCharts.pop().destroy();
+        }
+    }
+
+    function renderDashboardCharts() {
+        if (typeof Chart === "undefined") {
+            return;
+        }
+
+        const taskCanvas = document.getElementById("taskChart");
+        const progressCanvas = document.getElementById("progressChart");
+        if (!taskCanvas || !progressCanvas) {
+            return;
+        }
+
+        destroyDashboardCharts();
+
+        const textColor = getThemeColor("--text");
+        const mutedColor = getThemeColor("--muted");
+        const accentColor = getThemeColor("--accent");
+        const borderColor = getThemeColor("--border");
+
+        dashboardCharts.push(new Chart(taskCanvas.getContext("2d"), {
+            type: "bar",
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    label: "Tasks Completed",
+                    data: chartCounts,
+                    backgroundColor: accentColor,
+                    borderRadius: 8,
+                    maxBarThickness: 38,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 1200,
+                    easing: "easeOutQuart",
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: textColor,
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false,
+                        },
+                        ticks: {
+                            color: textColor,
+                        },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: textColor,
+                            precision: 0,
+                        },
+                        grid: {
+                            color: borderColor,
+                        },
+                    },
+                },
+            },
+        }));
+
+        dashboardCharts.push(new Chart(progressCanvas.getContext("2d"), {
+            type: "line",
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    label: "Study Progress",
+                    data: chartProgress,
+                    borderColor: accentColor,
+                    backgroundColor: "rgba(59, 130, 246, 0.12)",
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 4,
+                    pointHoverRadius: 5,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 1200,
+                    easing: "easeOutQuart",
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: textColor,
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: textColor,
+                        },
+                        grid: {
+                            display: false,
+                        },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: 100,
+                        ticks: {
+                            color: mutedColor,
+                            callback: (value) => `${value}%`,
+                        },
+                        grid: {
+                            color: borderColor,
+                        },
+                    },
+                },
+            },
+        }));
+    }
+
+    renderDashboardCharts();
+    document.addEventListener("themechange", renderDashboardCharts);
 </script>
 {% endblock %}

@@ -13,6 +13,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <div class="cursor-glow"></div>
     <div class="app-shell">
         {% if user.is_authenticated %}
             <aside class="sidebar">
@@ -93,7 +94,9 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/global.js' %}"></script>
+    {% block extra_js %}{% endblock %}
     <script>
         (function () {
             const isLocalhost = ["127.0.0.1", "localhost"].includes(window.location.hostname);

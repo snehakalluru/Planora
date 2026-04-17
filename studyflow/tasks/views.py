@@ -117,6 +117,33 @@ def dashboard_view(request):
         low_priority=Count("id", filter=Q(priority=Task.PRIORITY_LOW)),
     )
 
+    chart_start_date = timezone.localdate() - timedelta(days=6)
+    chart_dates = [chart_start_date + timedelta(days=index) for index in range(7)]
+    completed_by_day_queryset = (
+        user_tasks.filter(
+            status=Task.STATUS_COMPLETED,
+            completed_at__isnull=False,
+            completed_at__date__gte=chart_start_date,
+        )
+        .values("completed_at__date")
+        .annotate(count=Count("id"))
+    )
+    completed_by_day = {item["completed_at__date"]: item["count"] for item in completed_by_day_queryset}
+    chart_labels = [date.strftime("%a") for date in chart_dates]
+    chart_completed_counts = [completed_by_day.get(date, 0) for date in chart_dates]
+
+    completed_before_window = user_tasks.filter(
+        status=Task.STATUS_COMPLETED,
+        completed_at__isnull=False,
+        completed_at__date__lt=chart_start_date,
+    ).count()
+    running_completed = completed_before_window
+    chart_progress_percentages = []
+    for count in chart_completed_counts:
+        running_completed += count
+        percentage = int((running_completed / total_tasks) * 100) if total_tasks else 0
+        chart_progress_percentages.append(percentage)
+
     context = {
         "tasks": tasks[:8],
         "total_tasks": total_tasks,
@@ -135,6 +162,9 @@ def dashboard_view(request):
         "reminder_ready_tasks": reminder_ready_tasks[:5],
         "notifications_enabled": active_subscription,
         "vapid_public_key": settings.WEBPUSH_SETTINGS.get("VAPID_PUBLIC_KEY", ""),
+        "chart_labels": chart_labels,
+        "chart_completed_counts": chart_completed_counts,
+        "chart_progress_percentages": chart_progress_percentages,
     }
     return render(request, "tasks/dashboard.html", context)
 
