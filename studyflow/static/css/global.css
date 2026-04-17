@@ -3,6 +3,7 @@
     --text: #0f172a;
     --card: #f1f5f9;
     --accent: #3b82f6;
+    --late: #f59e0b;
     --muted: #475569;
     --border: #cbd5e1;
     --sidebar: #f1f5f9;
@@ -39,6 +40,7 @@ body.dark-mode {
     --text: #e2e8f0;
     --card: #1e293b;
     --accent: #3b82f6;
+    --late: #fbbf24;
     --muted: #94a3b8;
     --border: #334155;
     --sidebar: #1e293b;
@@ -68,6 +70,10 @@ body.dark-mode {
     --alert-info-text: #bfdbfe;
     --alert-info-bg: rgba(30, 64, 175, 0.32);
     --alert-info-border: rgba(59, 130, 246, 0.42);
+}
+
+.dark {
+    --late: #fbbf24;
 }
 
 * {
@@ -479,6 +485,11 @@ body.dark-mode .btn-close {
 .status-pill.Completed {
     background: var(--completed-bg);
     color: var(--text);
+}
+
+.completed-late {
+    color: var(--late, #f59e0b) !important;
+    font-weight: 600;
 }
 
 .priority-badge.High {

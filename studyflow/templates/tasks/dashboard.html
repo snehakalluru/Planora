@@ -55,7 +55,7 @@
     <div class="col-lg-8">
         {% if late_completed_tasks %}
             <div class="alert alert-warning border-0 shadow-sm mb-4" role="alert">
-                <h5 class="fw-bold mb-2">Completed After Deadline</h5>
+                <h5 class="fw-bold mb-2"><span class="completed-late">Completed After Deadline</span></h5>
                 {% for task in late_completed_tasks %}
                     <div class="mb-2">
                         <strong>{{ task.title }}</strong> was completed on
