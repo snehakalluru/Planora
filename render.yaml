@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: studyflow
+    env: python
+    buildCommand: ./build.sh
+    startCommand: cd studyflow && gunicorn studyflow.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: RENDER
+        value: "true"
