@@ -101,21 +101,6 @@ class Task(models.Model):
         )
 
 
-class NotificationSubscription(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notification_subscriptions")
-    endpoint = models.URLField(unique=True)
-    p256dh = models.TextField()
-    auth = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"{self.user.username} subscription"
-
-
 class StudyResource(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="study_resources")
     file = models.FileField(upload_to="study_resources/")

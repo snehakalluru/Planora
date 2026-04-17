@@ -7,7 +7,6 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from tasks.models import Task
-from tasks.notification_utils import send_push_notification
 
 logger = logging.getLogger(__name__)
 
@@ -56,15 +55,6 @@ def send_due_reminders():
                 exc,
             )
 
-        send_push_notification(
-            task.user,
-            {
-                "title": "StudyFlow Reminder",
-                "body": f"{task.title} is due at {timezone.localtime(task.deadline).strftime('%I:%M %p')}",
-                "url": "/tasks/",
-            },
-        )
-
         task.reminder_sent = True
         task.save(update_fields=["reminder_sent"])
         delivered_count += 1
@@ -73,7 +63,7 @@ def send_due_reminders():
 
 
 class Command(BaseCommand):
-    help = "Send email and browser reminders for tasks due within the next 24 hours."
+    help = "Send email reminders for tasks due within the next 24 hours."
 
     def handle(self, *args, **options):
         delivered_count = send_due_reminders()

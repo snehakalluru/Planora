@@ -58,7 +58,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "webpush",
     "habits",
     "users",
     "tasks",
@@ -174,10 +173,4 @@ CELERY_BEAT_SCHEDULE = {
         "task": "tasks.tasks.send_due_task_reminders",
         "schedule": 600.0,
     },
-}
-
-WEBPUSH_SETTINGS = {
-    "VAPID_PUBLIC_KEY": os.getenv("VAPID_PUBLIC_KEY", ""),
-    "VAPID_PRIVATE_KEY": os.getenv("VAPID_PRIVATE_KEY", ""),
-    "VAPID_ADMIN_EMAIL": os.getenv("VAPID_ADMIN_EMAIL", DEFAULT_FROM_EMAIL),
 }

@@ -17,8 +17,6 @@ urlpatterns = [
     path("<int:pk>/delete/", views.task_delete_view, name="task_delete"),
     path("<int:pk>/toggle/", views.task_toggle_status_view, name="task_toggle"),
     path("calendar/", views.calendar_view, name="calendar"),
-    path("notifications/subscribe/", views.subscribe_notifications_view, name="notifications_subscribe"),
-    path("notifications/unsubscribe/", views.unsubscribe_notifications_view, name="notifications_unsubscribe"),
 
     # Planner history management
     path("history/", views.planner_history, name="planner_history"),

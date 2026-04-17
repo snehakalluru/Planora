@@ -1,15 +1,11 @@
-import json
 import logging
 from collections import OrderedDict
 from datetime import timedelta
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
-from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -18,7 +14,7 @@ from .chatbot import generate_exam_plan
 from .file_utils import extract_text_from_pdf
 from .forms import DailyTimetableTaskForm, ExamPlannerForm, TaskForm
 from .management.commands.send_reminders import send_due_reminders
-from .models import DailyTimetableTask, NotificationSubscription, PlannerRequest, StudyResource, Task
+from .models import DailyTimetableTask, PlannerRequest, StudyResource, Task
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +105,6 @@ def dashboard_view(request):
         reminder_time__isnull=False,
         reminder_time__lte=now + timedelta(hours=12),
     ).order_by("reminder_time")
-    active_subscription = request.user.notification_subscriptions.filter(is_active=True).exists()
-
     task_summary = user_tasks.aggregate(
         high_priority=Count("id", filter=Q(priority=Task.PRIORITY_HIGH)),
         medium_priority=Count("id", filter=Q(priority=Task.PRIORITY_MEDIUM)),
@@ -160,8 +154,6 @@ def dashboard_view(request):
         "due_today_tasks": due_today_tasks[:5],
         "late_completed_tasks": [task for task in late_completed_tasks[:5] if task.was_completed_late],
         "reminder_ready_tasks": reminder_ready_tasks[:5],
-        "notifications_enabled": active_subscription,
-        "vapid_public_key": settings.WEBPUSH_SETTINGS.get("VAPID_PUBLIC_KEY", ""),
         "chart_labels": chart_labels,
         "chart_completed_counts": chart_completed_counts,
         "chart_progress_percentages": chart_progress_percentages,
@@ -381,36 +373,3 @@ def chatbot_view(request):
         "timetable_tasks": timetable_tasks,
     }
     return render(request, "tasks/chatbot.html", context)
-
-
-@login_required
-@require_POST
-def subscribe_notifications_view(request):
-    payload = json.loads(request.body.decode("utf-8"))
-    subscription, _ = NotificationSubscription.objects.update_or_create(
-        endpoint=payload["endpoint"],
-        defaults={
-            "user": request.user,
-            "p256dh": payload["keys"]["p256dh"],
-            "auth": payload["keys"]["auth"],
-            "is_active": True,
-        },
-    )
-    return JsonResponse({"status": "subscribed", "subscription_id": subscription.pk})
-
-
-@login_required
-@require_POST
-def unsubscribe_notifications_view(request):
-    NotificationSubscription.objects.filter(user=request.user, is_active=True).update(is_active=False)
-    return JsonResponse({"status": "unsubscribed"})
-
-
-def service_worker_view(request):
-    content = render_to_string(
-        "serviceworker.js",
-        {
-            "site_origin": request.build_absolute_uri("/").rstrip("/"),
-        },
-    )
-    return HttpResponse(content, content_type="application/javascript")

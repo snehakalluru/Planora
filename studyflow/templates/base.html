@@ -97,30 +97,5 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{% static 'js/global.js' %}"></script>
     {% block extra_js %}{% endblock %}
-    <script>
-        (function () {
-            const isLocalhost = ["127.0.0.1", "localhost"].includes(window.location.hostname);
-            if (!isLocalhost || !("serviceWorker" in navigator)) {
-                return;
-            }
-
-            window.addEventListener("load", async () => {
-                try {
-                    const registrations = await navigator.serviceWorker.getRegistrations();
-                    await Promise.all(registrations.map((registration) => registration.unregister()));
-                    if ("caches" in window) {
-                        const cacheNames = await caches.keys();
-                        await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
-                    }
-                    if (!window.sessionStorage.getItem("studyflow-sw-reset")) {
-                        window.sessionStorage.setItem("studyflow-sw-reset", "1");
-                        window.location.reload();
-                    }
-                } catch (error) {
-                    console.warn("Local service worker cleanup failed.", error);
-                }
-            });
-        }());
-    </script>
 </body>
 </html>
