@@ -233,22 +233,22 @@ class TaskViewTests(TestCase):
 
 
 class ChatbotServiceTests(TestCase):
-    @patch.object(chatbot, "OPENROUTER_API_KEY", "")
-    def test_call_openrouter_requires_api_key(self):
+    @patch("tasks.chatbot.os.getenv", return_value=None)
+    def test_call_openrouter_requires_api_key(self, _mock_getenv):
         with self.assertRaisesMessage(RuntimeError, "Unable to generate plan. Please try again."):
             chatbot._call_openrouter("test prompt")
 
     @patch("tasks.chatbot.requests.post")
-    @patch.object(chatbot, "OPENROUTER_API_KEY", "test-key")
-    def test_call_openrouter_raises_runtime_error_on_http_failure(self, mock_post):
+    @patch("tasks.chatbot.os.getenv", return_value="test-key")
+    def test_call_openrouter_raises_runtime_error_on_http_failure(self, _mock_getenv, mock_post):
         mock_post.side_effect = requests.RequestException("boom")
 
         with self.assertRaisesMessage(RuntimeError, "Unable to generate plan. Please try again."):
             chatbot._call_openrouter("test prompt")
 
     @patch("tasks.chatbot.requests.post")
-    @patch.object(chatbot, "OPENROUTER_API_KEY", "test-key")
-    def test_call_openrouter_raises_runtime_error_on_missing_content(self, mock_post):
+    @patch("tasks.chatbot.os.getenv", return_value="test-key")
+    def test_call_openrouter_raises_runtime_error_on_missing_content(self, _mock_getenv, mock_post):
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"choices": [{"message": {}}]}
@@ -258,8 +258,8 @@ class ChatbotServiceTests(TestCase):
             chatbot._call_openrouter("test prompt")
 
     @patch("tasks.chatbot.requests.post")
-    @patch.object(chatbot, "OPENROUTER_API_KEY", "test-key")
-    def test_call_openrouter_returns_response_text(self, mock_post):
+    @patch("tasks.chatbot.os.getenv", return_value="test-key")
+    def test_call_openrouter_returns_response_text(self, _mock_getenv, mock_post):
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {
@@ -268,10 +268,26 @@ class ChatbotServiceTests(TestCase):
         mock_post.return_value = mock_response
 
         self.assertEqual(chatbot._call_openrouter("test prompt"), "Generated plan text")
+        mock_post.assert_called_once_with(
+            chatbot.OPENROUTER_URL,
+            headers={
+                "Authorization": "Bearer test-key",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "openai/gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": "You are an exam planner assistant."},
+                    {"role": "user", "content": "test prompt"},
+                ],
+                "max_tokens": chatbot.OPENROUTER_MAX_TOKENS,
+            },
+            timeout=30,
+        )
 
     @patch("tasks.chatbot.requests.post")
-    @patch.object(chatbot, "OPENROUTER_API_KEY", "test-key")
-    def test_call_openrouter_supports_list_content(self, mock_post):
+    @patch("tasks.chatbot.os.getenv", return_value="test-key")
+    def test_call_openrouter_supports_list_content(self, _mock_getenv, mock_post):
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {
@@ -289,6 +305,17 @@ class ChatbotServiceTests(TestCase):
         mock_post.return_value = mock_response
 
         self.assertEqual(chatbot._call_openrouter("test prompt"), "Part one\nPart two")
+
+    @patch("tasks.chatbot.requests.post")
+    @patch("tasks.chatbot.os.getenv", return_value="test-key")
+    def test_call_openrouter_raises_runtime_error_on_invalid_json(self, _mock_getenv, mock_post):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.side_effect = ValueError("invalid json")
+        mock_post.return_value = mock_response
+
+        with self.assertRaisesMessage(RuntimeError, "Unable to generate plan. Please try again."):
+            chatbot._call_openrouter("test prompt")
 
 
 class DailyTimetableViewTests(TestCase):

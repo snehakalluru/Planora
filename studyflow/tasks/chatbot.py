@@ -6,11 +6,11 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_MODEL = "anthropic/claude-3-haiku"
+OPENROUTER_MODEL = "openai/gpt-4o-mini"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_FILE_TEXT_LENGTH = 4000
 OPENROUTER_MAX_TOKENS = 1800
+OPENROUTER_SYSTEM_PROMPT = "You are an exam planner assistant."
 
 
 def _truncate_text(text, limit=MAX_FILE_TEXT_LENGTH):
@@ -101,8 +101,10 @@ def _extract_message_text(message):
 
 
 def _call_openrouter(prompt):
-    if not OPENROUTER_API_KEY:
+    api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    if not api_key:
         logger.error("OpenRouter API key is missing.")
+        print("OpenRouter error: OPENROUTER_API_KEY is missing or empty.")
         raise RuntimeError("Unable to generate plan. Please try again.")
 
     logger.info("API request sent to OpenRouter model=%s", OPENROUTER_MODEL)
@@ -111,18 +113,21 @@ def _call_openrouter(prompt):
         response = requests.post(
             OPENROUTER_URL,
             headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
             json={
                 "model": OPENROUTER_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [
+                    {"role": "system", "content": OPENROUTER_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
                 "max_tokens": OPENROUTER_MAX_TOKENS,
             },
             timeout=30,
         )
         response.raise_for_status()
-        payload = response.json()
+        result = response.json()
         logger.info("API response received from OpenRouter status=%s", response.status_code)
     except requests.HTTPError as exc:
         try:
@@ -130,22 +135,27 @@ def _call_openrouter(prompt):
             error_message = error_payload.get("error", {}).get("message") or str(exc)
         except ValueError:
             error_message = str(exc)
+        print(f"OpenRouter HTTP error: {error_message}")
         logger.exception("OpenRouter HTTP error: %s", error_message)
         raise RuntimeError("Unable to generate plan. Please try again.") from exc
     except requests.RequestException as exc:
+        print(f"OpenRouter request error: {exc}")
         logger.exception("OpenRouter request error: %s", exc)
         raise RuntimeError("Unable to generate plan. Please try again.") from exc
     except ValueError as exc:
+        print(f"OpenRouter JSON parse error: {exc}")
         logger.exception("OpenRouter returned invalid JSON.")
         raise RuntimeError("Unable to generate plan. Please try again.") from exc
 
     try:
-        text = _extract_message_text(payload["choices"][0]["message"])
+        text = _extract_message_text(result["choices"][0]["message"])
     except (KeyError, IndexError, AttributeError, TypeError) as exc:
+        print(f"OpenRouter response format error: {exc}")
         logger.exception("OpenRouter returned invalid response format.")
         raise RuntimeError("Unable to generate plan. Please try again.") from exc
 
     if not text:
+        print("OpenRouter error: response content was empty.")
         logger.error("OpenRouter returned an empty response.")
         raise RuntimeError("Unable to generate plan. Please try again.")
 

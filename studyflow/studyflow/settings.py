@@ -38,8 +38,8 @@ def _get_list_env(*keys, default=""):
 
 
 SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("DJANGO_SECRET_KEY", "django-insecure-studyflow-dev-key")
-DEBUG = _get_bool_env("DEBUG", "DJANGO_DEBUG", default=not RENDER)
-ALLOWED_HOSTS = _get_list_env("ALLOWED_HOSTS", "DJANGO_ALLOWED_HOSTS", default="*")
+DEBUG = _get_bool_env("DJANGO_DEBUG", "DEBUG", default=not RENDER)
+ALLOWED_HOSTS = _get_list_env("DJANGO_ALLOWED_HOSTS", "ALLOWED_HOSTS", default="*")
 RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS and "*" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
@@ -130,7 +130,11 @@ STORAGES = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
     },
 }
 MEDIA_URL = "/media/"
