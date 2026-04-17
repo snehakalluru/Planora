@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Habit Ritual Lab | StudyFlow{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'habits/habits.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="habits-shell" id="habits-app">
+    <section class="ritual-hero mb-4">
+        <div>
+            <div class="page-eyebrow mb-2">Adaptive Habit Engine</div>
+            <h1 class="ritual-title">Habit Ritual Lab</h1>
+            <p class="ritual-copy mb-0">
+                Build routines that adapt to mood, protect streaks, and evolve with your real study load.
+            </p>
+        </div>
+        <div class="ritual-actions">
+            <a href="{% url 'chatbot' %}" class="btn btn-outline-light">Use Exam Planner</a>
+        </div>
+    </section>
+
+    <section class="ritual-grid ritual-grid--stats mb-4">
+        <article class="ritual-panel stat-panel glow-card">
+            <div class="panel-label">Level</div>
+            <div class="panel-value" id="profile-level">{{ profile.level }}</div>
+            <div class="panel-copy">XP {{ profile.xp }} • resilience {{ profile.resilience_score }}</div>
+            <div class="progress ritual-progress mt-3">
+                <div class="progress-bar" id="profile-progress" style="width: {{ profile.progress_to_next_level }}%;"></div>
+            </div>
+        </article>
+        <article class="ritual-panel stat-panel glow-card">
+            <div class="panel-label">Today</div>
+            <div class="panel-value">{{ completed_today }}/{{ total_habits }}</div>
+            <div class="panel-copy">Habits completed today</div>
+        </article>
+        <article class="ritual-panel stat-panel glow-card">
+            <div class="panel-label">Best Streak</div>
+            <div class="panel-value">{{ best_streak }} <span class="panel-icon">🔥</span></div>
+            <div class="panel-copy">Longest active rhythm right now</div>
+        </article>
+        <article class="ritual-panel stat-panel glow-card">
+            <div class="panel-label">Mood Signal</div>
+            <div class="panel-value">
+                {% if today_mood %}{{ today_mood.get_mood_score_display }}{% else %}Unset{% endif %}
+            </div>
+            <div class="panel-copy">7-day mood average {{ mood_average|default:"0" }}</div>
+        </article>
+    </section>
+
+    <section class="ritual-grid ritual-grid--top mb-4">
+        <article class="ritual-panel glow-card">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-label">Today's Mood Pulse</div>
+                    <h3 class="panel-title">Mood-aware streak protection</h3>
+                </div>
+                <span class="pill pill-soft">AI correlation</span>
+            </div>
+            <form id="mood-form" method="post" action="{% url 'habit_mood_log' %}">
+                {% csrf_token %}
+                <div class="ritual-form-grid">
+                    {% for field in mood_form %}
+                        <div class="ritual-field {% if field.name == 'note' %}ritual-field--wide{% endif %}">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <button type="submit" class="btn btn-ritual">Log Today's Mood</button>
+                    <span class="mini-copy" id="mood-status">Your latest mood helps the engine tune insights and risk.</span>
+                </div>
+            </form>
+        </article>
+
+        <article class="ritual-panel glow-card">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-label">Spawn A Ritual</div>
+                    <h3 class="panel-title">Create a habit that can evolve</h3>
+                </div>
+                <span class="pill pill-accent">Adaptive difficulty</span>
+            </div>
+            <form method="post" action="{% url 'habit_create' %}">
+                {% csrf_token %}
+                <div class="ritual-form-grid">
+                    {% for field in habit_form %}
+                        <div class="ritual-field {% if field.name == 'why' %}ritual-field--wide{% endif %}">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% for error in field.errors %}
+                                <div class="text-danger small mt-1">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+                <button class="btn btn-ritual" type="submit">Launch Habit Engine</button>
+            </form>
+        </article>
+    </section>
+
+    <section class="ritual-grid ritual-grid--insights mb-4">
+        <article class="ritual-panel glow-card">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-label">Today Focus Mode</div>
+                    <h3 class="panel-title">Protected habits</h3>
+                </div>
+                <span class="pill pill-soft">{{ focus_cards|length }} active</span>
+            </div>
+            <div class="mini-cards">
+                {% for item in focus_cards %}
+                    <div class="mini-card">
+                        <div class="mini-card__title">{{ item.title }}</div>
+                        <div class="mini-card__copy">{{ item.insight }}</div>
+                    </div>
+                {% empty %}
+                    <div class="mini-card mini-card--empty">Enable focus mode on a habit to get a protected execution window.</div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="ritual-panel glow-card">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-label">Recovery Queue</div>
+                    <h3 class="panel-title">Habits showing streak risk</h3>
+                </div>
+                <span class="pill pill-warn">Average risk {{ average_risk }}</span>
+            </div>
+            <div class="mini-cards">
+                {% for item in recovery_cards %}
+                    <div class="mini-card">
+                        <div class="mini-card__title">{{ item.title }} · {{ item.risk_band }}</div>
+                        <div class="mini-card__copy">{{ item.insight }}</div>
+                    </div>
+                {% empty %}
+                    <div class="mini-card mini-card--empty">No fragile streaks right now. Momentum looks stable.</div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="ritual-panel glow-card">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-label">Exam Planner Signals</div>
+                    <h3 class="panel-title">Suggested habits</h3>
+                </div>
+                <span class="pill pill-accent">Planner-aware</span>
+            </div>
+            <div class="mini-cards">
+                {% for suggestion in planner_suggestions %}
+                    <div class="mini-card">
+                        <div class="mini-card__title">{{ suggestion.title }}</div>
+                        <div class="mini-card__copy">{{ suggestion.why }}</div>
+                        <div class="mini-card__meta">{{ suggestion.cue }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+
+    <section class="ritual-panel glow-card mb-4">
+        <div class="panel-header">
+            <div>
+                <div class="panel-label">Badge Constellation</div>
+                <h3 class="panel-title">Gamified momentum</h3>
+            </div>
+            <span class="pill pill-soft">{{ badges_count }} unlocked</span>
+        </div>
+        <div class="badge-orbit">
+            {% for badge in badges %}
+                <div class="badge-orbit__item">
+                    <div class="badge-orbit__icon">{{ badge.icon }}</div>
+                    <div class="badge-orbit__title">{{ badge.label }}</div>
+                    <div class="badge-orbit__copy">{{ badge.description }}</div>
+                </div>
+            {% empty %}
+                <div class="mini-card mini-card--empty">Your first completed habit will unlock the opening badge.</div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+            <div>
+                <div class="page-eyebrow mb-2">Active Rituals</div>
+                <h2 class="fw-bold mb-0">Card-based habit command center</h2>
+            </div>
+            <div class="mini-copy">Each card tracks streak 🔥, progress 📊, and insight 🧠.</div>
+        </div>
+
+        <div class="habit-card-grid">
+            {% for item in habit_cards %}
+                <article
+                    class="habit-card glow-card"
+                    data-habit-id="{{ item.id }}"
+                    data-toggle-url="{% url 'habit_toggle' item.id %}"
+                    data-focus-url="{% url 'habit_focus_mode' item.id %}"
+                    data-recovery-url="{% url 'habit_recovery_mode' item.id %}"
+                >
+                    <div class="habit-card__header">
+                        <div>
+                            <div class="habit-card__category">{{ item.category }} · {{ item.difficulty }}</div>
+                            <h3 class="habit-card__title">{{ item.title }}</h3>
+                            <p class="habit-card__cue">{{ item.cue|default:"No cue yet. Add one to make the trigger automatic." }}</p>
+                        </div>
+                        <span class="risk-chip risk-chip--{{ item.risk_band|lower }}">{{ item.risk_band }}</span>
+                    </div>
+
+                    <div class="habit-card__stats">
+                        <div class="habit-stat">
+                            <div class="habit-stat__label">Streak 🔥</div>
+                            <div class="habit-stat__value" data-field="streak">{{ item.streak }}</div>
+                        </div>
+                        <div class="habit-stat">
+                            <div class="habit-stat__label">Progress 📊</div>
+                            <div class="habit-stat__value"><span data-field="progress">{{ item.progress }}</span>%</div>
+                        </div>
+                        <div class="habit-stat">
+                            <div class="habit-stat__label">Risk</div>
+                            <div class="habit-stat__value"><span data-field="risk">{{ item.risk }}</span></div>
+                        </div>
+                    </div>
+
+                    <div class="progress ritual-progress mb-3">
+                        <div class="progress-bar" data-field="progressbar" style="width: {{ item.progress }}%;"></div>
+                    </div>
+
+                    <div class="habit-card__insight">
+                        <div class="habit-card__insight-label">Insight 🧠</div>
+                        <p data-field="insight">{{ item.insight }}</p>
+                    </div>
+
+                    <div class="habit-card__footer">
+                        <button type="button" class="btn btn-ritual habit-action" data-action="toggle">
+                            {% if item.today_done %}Undo Today{% else %}Complete Today{% endif %}
+                        </button>
+                        <button type="button" class="btn btn-outline-light habit-action" data-action="focus">
+                            {% if item.focus_mode %}Exit Focus{% else %}Focus Mode{% endif %}
+                        </button>
+                        <button type="button" class="btn btn-outline-warning habit-action" data-action="recovery">
+                            Recovery Mode
+                        </button>
+                    </div>
+                    <div class="habit-card__meta">
+                        <span data-field="status">{% if item.today_done %}Completed today{% else %}Waiting for today's rep{% endif %}</span>
+                        <span data-field="difficulty">{{ item.difficulty }}</span>
+                    </div>
+                </article>
+            {% empty %}
+                <div class="ritual-panel glow-card">
+                    <h3 class="panel-title">No habits live yet</h3>
+                    <p class="mb-0">Create your first ritual above and the engine will begin tracking mood, streak risk, XP, and evolution automatically.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<script src="{% static 'habits/habits.js' %}"></script>
+{% endblock %}

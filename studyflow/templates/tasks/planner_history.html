@@ -30,7 +30,7 @@
                     <td>{{ req.created_at|date:"Y-m-d H:i" }}</td>
                     <td>
                         <a href="{% url 'planner_detail' req.id %}" class="btn btn-outline-primary btn-sm">View Response</a>
-                        <form method="post" action="{% url 'delete_planner_request' req.id %}" style="display:inline;">
+                        <form method="post" action="{% url 'delete_planner_request' req.id %}" class="inline-form">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this planner request?');">Delete</button>
                         </form>

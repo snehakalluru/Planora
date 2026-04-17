@@ -1,0 +1,351 @@
+:root {
+    --ritual-bg: radial-gradient(circle at top left, rgba(86, 214, 255, 0.18), transparent 26%),
+        radial-gradient(circle at bottom right, rgba(122, 124, 255, 0.14), transparent 24%),
+        linear-gradient(135deg, #e7f3ff 0%, #f7fbff 55%, #eef2ff 100%);
+    --ritual-panel: rgba(255, 255, 255, 0.84);
+    --ritual-panel-strong: rgba(255, 255, 255, 0.94);
+    --ritual-border: rgba(53, 87, 143, 0.12);
+    --ritual-copy: #2f4267;
+    --ritual-muted: #6b7fa4;
+    --ritual-strong: #15213a;
+    --ritual-accent: #56d6ff;
+    --ritual-accent-2: #7a7cff;
+    --ritual-success: #6af2b0;
+    --ritual-warning: #ffb866;
+    --ritual-danger: #ff7f9f;
+}
+
+body.dark-mode {
+    --ritual-bg: radial-gradient(circle at top left, rgba(97, 233, 255, 0.18), transparent 30%),
+        radial-gradient(circle at 80% 10%, rgba(120, 119, 255, 0.16), transparent 25%),
+        linear-gradient(135deg, #08111f 0%, #10172a 50%, #091423 100%);
+    --ritual-panel: rgba(12, 20, 36, 0.76);
+    --ritual-panel-strong: rgba(19, 28, 48, 0.92);
+    --ritual-border: rgba(146, 192, 255, 0.16);
+    --ritual-copy: #bfd2ff;
+    --ritual-muted: #7f95bc;
+    --ritual-strong: #f3f7ff;
+}
+
+.habits-shell {
+    color: var(--ritual-strong);
+}
+
+.ritual-hero,
+.ritual-panel,
+.habit-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--ritual-border);
+    border-radius: 26px;
+    background: var(--ritual-panel);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(18px);
+}
+
+.ritual-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 1rem;
+    padding: 2rem;
+    background: var(--ritual-bg);
+}
+
+.ritual-title {
+    font-size: clamp(2.2rem, 6vw, 4rem);
+    line-height: 0.95;
+    margin-bottom: 0.75rem;
+}
+
+.ritual-copy,
+.panel-copy,
+.mini-copy,
+.habit-card__cue,
+.habit-card__meta,
+.badge-orbit__copy,
+.mini-card__copy,
+.mini-card__meta {
+    color: var(--ritual-copy);
+}
+
+.ritual-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.ritual-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.ritual-grid--stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ritual-grid--top {
+    grid-template-columns: 1.1fr 1fr;
+}
+
+.ritual-grid--insights {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ritual-panel,
+.habit-card {
+    padding: 1.4rem;
+}
+
+.panel-label,
+.habit-card__category,
+.habit-stat__label {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.72rem;
+    color: var(--ritual-muted);
+}
+
+.panel-title {
+    margin: 0.2rem 0 0;
+}
+
+.panel-value {
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.panel-icon {
+    font-size: 1.8rem;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+}
+
+.pill-soft {
+    background: rgba(122, 124, 255, 0.16);
+    color: var(--ritual-strong);
+}
+
+.pill-accent {
+    background: rgba(86, 214, 255, 0.16);
+    color: var(--ritual-accent);
+}
+
+.pill-warn {
+    background: rgba(255, 184, 102, 0.16);
+    color: var(--ritual-warning);
+}
+
+.ritual-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.ritual-field--wide {
+    grid-column: 1 / -1;
+}
+
+.ritual-panel .form-control,
+.ritual-panel .form-select {
+    background: rgba(255, 255, 255, 0.7);
+    border-color: rgba(53, 87, 143, 0.12);
+    color: var(--ritual-strong);
+}
+
+body.dark-mode .ritual-panel .form-control,
+body.dark-mode .ritual-panel .form-select {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--ritual-strong);
+}
+
+.ritual-panel textarea.form-control {
+    min-height: 96px;
+}
+
+.btn-ritual {
+    background: linear-gradient(135deg, var(--ritual-accent) 0%, var(--ritual-accent-2) 100%);
+    color: #06111f;
+    border: 0;
+    font-weight: 700;
+}
+
+.btn-ritual:hover {
+    color: #06111f;
+    background: linear-gradient(135deg, #38bdf8 0%, #6366f1 100%);
+}
+
+.mini-cards,
+.badge-orbit,
+.habit-card-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.badge-orbit {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.mini-card,
+.badge-orbit__item {
+    padding: 1rem;
+    border-radius: 20px;
+    background: var(--ritual-panel-strong);
+    border: 1px solid var(--ritual-border);
+}
+
+.mini-card--empty {
+    color: var(--ritual-muted);
+}
+
+.mini-card__title,
+.badge-orbit__title {
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+}
+
+.badge-orbit__icon {
+    font-size: 1.6rem;
+    margin-bottom: 0.4rem;
+}
+
+.habit-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+}
+
+.habit-card {
+    background: var(--ritual-panel);
+}
+
+.habit-card__header,
+.habit-card__footer,
+.habit-card__meta,
+.habit-card__stats {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+}
+
+.habit-card__title {
+    margin: 0.3rem 0;
+}
+
+.habit-card__stats {
+    margin: 1rem 0;
+}
+
+.habit-stat {
+    flex: 1;
+    padding: 0.9rem;
+    border-radius: 18px;
+    background: var(--ritual-panel-strong);
+    border: 1px solid var(--ritual-border);
+}
+
+.habit-stat__value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.habit-card__insight {
+    min-height: 106px;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--ritual-border);
+}
+
+.habit-card__insight-label {
+    margin-bottom: 0.35rem;
+    color: var(--ritual-muted);
+}
+
+.habit-card__meta {
+    margin-top: 0.75rem;
+    color: var(--ritual-muted);
+    font-size: 0.88rem;
+}
+
+.ritual-progress {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.ritual-progress .progress-bar {
+    background: linear-gradient(90deg, var(--ritual-accent), var(--ritual-success));
+}
+
+.risk-chip {
+    border-radius: 999px;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.risk-chip--stable {
+    background: rgba(106, 242, 176, 0.14);
+    color: var(--ritual-success);
+}
+
+.risk-chip--watch {
+    background: rgba(255, 184, 102, 0.14);
+    color: var(--ritual-warning);
+}
+
+.risk-chip--critical {
+    background: rgba(255, 127, 159, 0.14);
+    color: var(--ritual-danger);
+}
+
+.glow-card:hover,
+.ritual-panel:hover,
+.habit-card:hover,
+.mini-card:hover,
+.badge-orbit__item:hover,
+.habit-stat:hover {
+    border-color: var(--ritual-accent-2);
+}
+
+@media (max-width: 991px) {
+    .ritual-grid--stats,
+    .ritual-grid--top,
+    .ritual-grid--insights {
+        grid-template-columns: 1fr;
+    }
+
+    .ritual-hero {
+        align-items: start;
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 767px) {
+    .ritual-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .habit-card__footer,
+    .habit-card__meta,
+    .habit-card__header,
+    .habit-card__stats {
+        flex-direction: column;
+    }
+}
